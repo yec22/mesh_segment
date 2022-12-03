@@ -125,11 +125,18 @@ void DualGraph::Shortest_Path(Graph& graph) {
     std::cout << "shortest path algorithm finish!" << std::endl;
 }
 
-void GraphSolver::Init(Graph* _g, DualGraph* _dg, int l) {
+void GraphSolver::Init(Graph* _g, DualGraph* _dg, int l, std::vector<int>& s) {
     g = _g; dg = _dg; level = l;
     int n = g->faces.size();
     P_A.resize(n); P_B.resize(n); flow_net.resize(n+2);
     S = n; T = n + 1;
+    if(l == 0){
+        for (int i = 0; i < n; ++i) sub_v.push_back(i);
+        sub_n = sub_v.size();
+    }
+    else{
+        sub_v = s; sub_n = sub_v.size();
+    }
     for(int i = 0; i < n; ++i) {
         for(int j = 0; j < g->faces[i].neighbours.size(); ++j) {
             FlowEdge fe;
@@ -139,21 +146,33 @@ void GraphSolver::Init(Graph* _g, DualGraph* _dg, int l) {
 			flow_net[i].push_back(fe);
         }
     }
+    avg_dist = Cal_Avg_Dist();
+    if(level == 0) GLOBAL_AVG_DIST = avg_dist;
     Find_Max_Dist(); // init RepA, RepB
 }
 
-double GraphSolver::Find_Max_Dist() {
+double GraphSolver::Cal_Avg_Dist() {
+    double sum_dist = 0.0;
+    for(int i = 0; i < sub_n; ++i) {
+        for(int j = i + 1; j < sub_n; ++j) {
+            sum_dist += dg->dis[sub_v[i]][sub_v[j]];
+        }
+    }
+    double avg_dist = 2 * sum_dist / (sub_n * (sub_n - 1));
+    return avg_dist;
+}
+
+void GraphSolver::Find_Max_Dist() {
     double max_dist = -INF;
-    int n = g->faces.size();
-    for(int i = 0; i < n; ++i) {
-        for(int j = i + 1; j < n; ++j) {
-            if(max_dist < dg->dis[i][j]) {
-                REP_A = i; REP_B = j;
-                max_dist = dg->dis[i][j];
+    for(int i = 0; i < sub_n; ++i) {
+        for(int j = i + 1; j < sub_n; ++j) {
+            if(max_dist < dg->dis[sub_v[i]][sub_v[j]]) {
+                REP_A = sub_v[i]; REP_B = sub_v[j];
+                max_dist = dg->dis[sub_v[i]][sub_v[j]];
             }
         }
     }
-    return max_dist;
+    if(level == 0) GLOBAL_MAX_DIST = max_dist;
 }
 
 void GraphSolver::Solve() {
@@ -167,54 +186,52 @@ void GraphSolver::Solve() {
     }
     Assign_Label();
     Graph_Cut();
-    std::cout << "mesh decomposition solved!" << std::endl;
+    LABEL_BASE += K; // ensure assigning different labels
+    DFS_Solve();
 }
 
 void GraphSolver::Assign_Prob() {
-    int n = g->faces.size();
-    for(int i = 0; i < n; ++i) {
-        if(i == REP_A) {P_A[i] = 1.0; P_B[i] = 0.0;}
-        else if(i == REP_B) {P_B[i] = 1.0; P_A[i] = 0.0;}
+    for(int i = 0; i < sub_n; ++i) {
+        if(sub_v[i] == REP_A) {P_A[i] = 1.0; P_B[i] = 0.0;}
+        else if(sub_v[i] == REP_B) {P_B[i] = 1.0; P_A[i] = 0.0;}
         else{
-            P_A[i] = dg->dis[i][REP_B] / (dg->dis[i][REP_A] + dg->dis[i][REP_B]);
+            P_A[i] = dg->dis[sub_v[i]][REP_B] / (dg->dis[sub_v[i]][REP_A] + dg->dis[sub_v[i]][REP_B]);
             P_B[i] = 1.0 - P_A[i];
         }
     }
 }
 
 void GraphSolver::Assign_Label() {
-    int n = g->faces.size();
     int label, fuzzy_cnt = 0;
-    int cnt[2] = {0, 0};
-    for(int i = 0; i < n; ++i) {
-        if(P_A[i] > P_B[i]) {label = 0;}
-        else {label = 1;}
+    int cnt[K] = {0};
+    for(int i = 0; i < sub_n; ++i) {
+        if(P_A[i] > P_B[i]) {label = A_FLAG;}
+        else {label = B_FLAG;}
         if(abs(P_A[i] - P_B[i]) > PROB_THR) {cnt[label] += 1;}
         else {label = FUZZY; fuzzy_cnt += 1;}
-        g->faces[i].label = label;
+        g->faces[sub_v[i]].label = LABEL_BASE + label;
     }
-    std::cout << "labelA: " << cnt[0] << ", labelB: " << cnt[1] << ", fuzzy: " << fuzzy_cnt << std::endl;
+    std::cout << "level: " << level << " labelA: " << cnt[0] << ", labelB: " << cnt[1] << ", fuzzy: " << fuzzy_cnt << std::endl;
 }
 
 void GraphSolver::Update_Rep() {
     double F_A = INF, F_B = INF;
     double sum;
-    int n = g->faces.size();
-    for(int i = 0; i < n; ++i){
+    for(int i = 0; i < sub_n; ++i){
         sum = 0.0;
-        for(int j = 0; j < n; ++j){
-            sum += P_A[j] * dg->dis[i][j];
+        for(int j = 0; j < sub_n; ++j){
+            sum += P_A[j] * dg->dis[sub_v[i]][sub_v[j]];
         }
         if(sum < F_A){
-            F_A = sum; REP_A = i;
+            F_A = sum; REP_A = sub_v[i];
         }
 
         sum = 0.0;
-        for(int j = 0; j < n; ++j){
-            sum += P_B[j] * dg->dis[i][j];
+        for(int j = 0; j < sub_n; ++j){
+            sum += P_B[j] * dg->dis[sub_v[i]][sub_v[j]];
         }
         if(sum < F_B){
-            F_B = sum; REP_B = i;
+            F_B = sum; REP_B = sub_v[i];
         }
     }
 }
@@ -223,11 +240,11 @@ void GraphSolver::Init_Flow(std::vector<int>& p) {
     int n = g->faces.size();
     flow_net[S].clear();
     for(int i = 0; i < n; ++i) {
-        if(p[i] == 1){ // Set V_CA
+        if(p[i] == A_FLAG + 1){ // Set V_CA
             FlowEdge fe(i, INF, 0.0);
             flow_net[S].push_back(fe);
         }
-        else if(p[i] == 2){ // Set V_CB
+        else if(p[i] == B_FLAG + 1){ // Set V_CB
             if(flow_net[i][flow_net[i].size()-1].id != T){
                 FlowEdge fe(T, INF, 0.0);
                 flow_net[i].push_back(fe);
@@ -238,13 +255,8 @@ void GraphSolver::Init_Flow(std::vector<int>& p) {
 				flow_net[i].pop_back();
         }
     }
-    p.push_back(4); // S
-    p.push_back(4); // T
-    for(int i = 0; i < n + 2; ++i){
-        if(p[i] != 0) {
-            for(int j = 0; j < flow_net[i].size(); ++j) flow_net[i][j].flow = 0.0;
-        }
-    }
+    p.push_back(OTHER_FLAG); // S
+    p.push_back(OTHER_FLAG); // T
 }
 
 void GraphSolver::Max_Flow(std::vector<int>& p) {
@@ -272,8 +284,8 @@ void GraphSolver::Max_Flow(std::vector<int>& p) {
             }
         }
         if(!vis[T]) { // no more augmenting path
-            for(int i = 1; i <= tail; ++i) p[q[i].id] = 1;
-            for(int i = 0; i < n; ++i) {if (p[i] == 3) p[i] = 2;} // eliminate fuzzy region
+            for(int i = 1; i <= tail; ++i) p[q[i].id] = A_FLAG + 1;
+            for(int i = 0; i < n; ++i) {if (p[i] == FUZZY) p[i] = B_FLAG + 1;} // eliminate fuzzy region
             break; // algorithm finish
         }
         double inc = q[tail].inc; flow_sum += inc;
@@ -290,27 +302,43 @@ void GraphSolver::Max_Flow(std::vector<int>& p) {
 			tail = prev;
 		}
     }
-    std::cout << "max flow computed: " << flow_sum << std::endl;
+    std::cout <<"level: " << level << " max flow computed: " << flow_sum << std::endl;
 }
 
 void GraphSolver::Graph_Cut() {
     int n = g->faces.size();
     std::vector<int> partition; partition.resize(n);
     for(int i = 0; i < n; ++i) partition[i] = 0;
-    for(int i = 0; i < n; ++i){
-        if(g->faces[i].label == FUZZY){
-            partition[i] = 3; // Set V_C
-            for(int j = 0; j < g->faces[i].neighbours.size(); ++j){
-                int ne = g->faces[i].neighbours[j].f_id;
-                if(g->faces[ne].label == 0) partition[ne] = 1; // Set V_CA
-                else if(g->faces[ne].label == 1) partition[ne] = 2; // Set V_CB
+    for(int i = 0; i < sub_n; ++i){
+        if(g->faces[sub_v[i]].label == LABEL_BASE + FUZZY){
+            partition[sub_v[i]] = FUZZY; // Set V_C
+            for(int j = 0; j < g->faces[sub_v[i]].neighbours.size(); ++j){
+                int ne = g->faces[sub_v[i]].neighbours[j].f_id;
+                if(g->faces[ne].label == LABEL_BASE + A_FLAG) partition[ne] = A_FLAG + 1; // Set V_CA
+                else if(g->faces[ne].label == LABEL_BASE + B_FLAG) partition[ne] = B_FLAG + 1; // Set V_CB
             }
         }
     }
     Init_Flow(partition);
     Max_Flow(partition);
-    for(int i = 0; i < n; ++i){ // assign labels
-        if(partition[i] == 1) g->faces[i].label = 0; // A
-        else if(partition[i] == 2) g->faces[i].label = 1; // B
+    for(int i = 0; i < sub_n; ++i){ // assign labels
+        if(partition[sub_v[i]] == A_FLAG + 1) g->faces[sub_v[i]].label = LABEL_BASE + A_FLAG; // A
+        else if(partition[sub_v[i]] == B_FLAG + 1) g->faces[sub_v[i]].label = LABEL_BASE + B_FLAG; // B
     }
+}
+
+void GraphSolver::DFS_Solve() {
+    double rep_dist = dg->dis[REP_A][REP_B];
+	if(level == MAX_DEPTH || (rep_dist / GLOBAL_MAX_DIST < REP_DIST_RATIO)) return;
+    GraphSolver* gs_A = new GraphSolver();
+    GraphSolver* gs_B = new GraphSolver();
+    std::vector<int> sub_gA, sub_gB;
+    for(int i = 0; i < sub_n; ++i) {
+        if ((g->faces[sub_v[i]].label) % K == A_FLAG) sub_gA.push_back(sub_v[i]); // A
+        if ((g->faces[sub_v[i]].label) % K == B_FLAG) sub_gB.push_back(sub_v[i]); // B
+    }
+    gs_A->Init(g, dg, level + 1, sub_gA);
+    gs_B->Init(g, dg, level + 1, sub_gB);
+	if(gs_A->avg_dist / GLOBAL_AVG_DIST > AVG_DIST_RATIO) gs_A->Solve();
+    if(gs_B->avg_dist / GLOBAL_AVG_DIST > AVG_DIST_RATIO) gs_B->Solve();
 }

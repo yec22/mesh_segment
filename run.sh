@@ -1,3 +1,3 @@
 g++ *.cpp -o main
-./main data/dinosaur.ply data/dinosaur_seg.ply
+./main data/horse.ply data/horse_seg.ply
 rm -rf main

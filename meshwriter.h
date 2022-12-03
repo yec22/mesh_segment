@@ -40,7 +40,7 @@ class MeshWriter {
                 plyfile << graph.faces[i].v_id[2] << " ";
                 // color
                 int label = graph.faces[i].label;
-		        plyfile << 60 * (label % 4 + 2) << " " << 80 * ((label + 1) % 3 + 2) << " " << 50 * ((label + 2) % 5 + 2) << std::endl;
+		        plyfile << 80 * (label % 4 + 1) << " " << 60 * ((label + 1) % 3 + 1) << " " << 40 * ((label + 2) % 5 + 1) << std::endl;
             }
 
             plyfile.close();

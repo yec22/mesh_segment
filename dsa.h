@@ -12,8 +12,19 @@ const double INF = 1e10;
 const double ETA = 0.2;
 const double DELTA = 0.8;
 const double PROB_THR = 0.05;
+const double REP_DIST_RATIO = 0.1;
+const double AVG_DIST_RATIO = 0.2;
 const int MAX_ITER = 10;
-const int FUZZY = -1;
+const int FUZZY = -1234;
+const int MAX_DEPTH = 2;
+const int K = 2;
+const int A_FLAG = 0;
+const int B_FLAG = 1;
+const int OTHER_FLAG = 777;
+
+static int LABEL_BASE = 0;
+static double GLOBAL_MAX_DIST;
+static double GLOBAL_AVG_DIST;
 
 struct Vec3d {
 	double x[3];
@@ -178,17 +189,19 @@ struct FlowState
 class GraphSolver {
     public:
         int REP_A, REP_B;
-        int level;
+        int level, sub_n;
+        double avg_dist;
         std::vector<double> P_A;
         std::vector<double> P_B;
+        std::vector<int> sub_v;
         std::vector<std::vector<FlowEdge> > flow_net;
         int S, T;
         Graph* g;
         DualGraph* dg;
 
         GraphSolver() {}
-        void Init(Graph* _g, DualGraph* _dg, int l);
-        double Find_Max_Dist();
+        void Init(Graph* _g, DualGraph* _dg, int l, std::vector<int>& s);
+        void Find_Max_Dist();
         void Solve();
         void Assign_Prob();
         void Assign_Label();
@@ -196,4 +209,6 @@ class GraphSolver {
         void Graph_Cut();
         void Init_Flow(std::vector<int>& p);
         void Max_Flow(std::vector<int>& p);
+        void DFS_Solve();
+        double Cal_Avg_Dist();
 };
