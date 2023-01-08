@@ -302,7 +302,7 @@ void GraphSolver::Max_Flow(std::vector<int>& p) {
 			tail = prev;
 		}
     }
-    std::cout <<"level: " << level << " max flow computed: " << flow_sum << std::endl;
+    std::cout << "level: " << level << " max flow computed: " << flow_sum << std::endl;
 }
 
 void GraphSolver::Graph_Cut() {
