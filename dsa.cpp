@@ -245,14 +245,8 @@ void GraphSolver::Init_Flow(std::vector<int>& p) {
             flow_net[S].push_back(fe);
         }
         else if(p[i] == B_FLAG + 1){ // Set V_CB
-            if(flow_net[i][flow_net[i].size()-1].id != T){
-                FlowEdge fe(T, INF, 0.0);
-                flow_net[i].push_back(fe);
-            }
-        }
-        else{ // Set C & others
-			if (flow_net[i][flow_net[i].size()-1].id == T)
-				flow_net[i].pop_back();
+            FlowEdge fe(T, INF, 0.0);
+            flow_net[i].push_back(fe);
         }
     }
     p.push_back(OTHER_FLAG); // S
