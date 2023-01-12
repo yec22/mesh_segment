@@ -270,11 +270,11 @@ void GraphSolver::Max_Flow(std::vector<int>& p) {
             for(int i = 0; i < flow_net[top.id].size(); ++i){
                 int ne = flow_net[top.id][i].id;
                 double inc = flow_net[top.id][i].cap - flow_net[top.id][i].flow;
-                if (p[ne] == 0) continue;
+                if (p[ne] == 0) continue; // not in the sub_graph
                 if (vis[ne] || inc < EPS) continue;
                 FlowState fs(ne, head - 1, std::min(top.inc, inc));
                 q.push_back(fs); vis[ne] = true; tail++;
-                if(ne == T) break;
+                if(ne == T) break; // stop until we find T
             }
         }
         if(!vis[T]) { // no more augmenting path
